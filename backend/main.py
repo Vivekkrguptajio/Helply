@@ -5,7 +5,6 @@ import socketio
 import json
 import websockets
 from pydantic_settings import BaseSettings
-from deepgram import DeepgramClient, LiveTranscriptionEvents
 from groq import AsyncGroq
 
 # Configure logging
