@@ -4,7 +4,8 @@ from fastapi import FastAPI
 import socketio
 import json
 import websockets
-from deepgram import DeepgramClient, DeepgramClientOptions, LiveOptions, LiveTranscriptionEvents
+from pydantic_settings import BaseSettings
+from deepgram import DeepgramClient, LiveTranscriptionEvents
 from groq import AsyncGroq
 
 # Configure logging
