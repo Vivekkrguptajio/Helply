@@ -2,7 +2,8 @@ import asyncio
 import logging
 from fastapi import FastAPI
 import socketio
-from pydantic_settings import BaseSettings
+import json
+import websockets
 from deepgram import DeepgramClient, DeepgramClientOptions, LiveOptions, LiveTranscriptionEvents
 from groq import AsyncGroq
 
@@ -30,8 +31,7 @@ sio = socketio.AsyncServer(
 app = FastAPI(title="Interview Copilot Backend")
 sio_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
-# Initialize Deepgram Options
-dg_options = DeepgramClientOptions(options={"keepalive": "true"})
+# Deepgram Options are no longer needed globally if we use raw websockets
 
 # Initialize Groq
 groq_client = AsyncGroq(api_key=settings.GROQ_API_KEY)
@@ -86,56 +86,43 @@ async def get_groq_answer(sid: str, transcribed_question: str):
 
 async def create_deepgram_client_connection(sid: str):
     """
-    Creates and starts a live Deepgram websocket connection for a given Socket.io session.
+    Creates and starts a live Deepgram websocket connection for a given Socket.io session using standard websockets to avoid SDK lockups.
     """
     try:
-        # Create a new Deepgram client instance for each connection to prevent event-loop lockups
-        local_dg_client = DeepgramClient(settings.DEEPGRAM_API_KEY, dg_options)
-        dg_connection = local_dg_client.listen.asyncwebsocket.v("1")
+        url = "wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&interim_results=true&endpointing=700&smart_format=true"
+        headers = {"Authorization": f"Token {settings.DEEPGRAM_API_KEY}"}
         
-        # Prevent the client from being garbage collected by attaching it to the connection
-        dg_connection._parent_client_ref = local_dg_client
-
-        async def on_message(self, result, **kwargs):
-            sentence = result.channel.alternatives[0].transcript
-            if not sentence:
-                return
-
-            # Check if this is a completed phrase/sentence
-            if result.is_final:
-                logger.info(f"[{sid}] Deepgram Final Transcription: {sentence}")
-                
-                # 1. Send transcription to frontend
-                await sio.emit("interviewer_transcription", {"text": sentence}, to=sid)
-                
-                # 2. Trigger LLM concurrently
-                asyncio.create_task(get_groq_answer(sid, sentence))
-            else:
-                # Send interim (live typing) to frontend
-                await sio.emit("interviewer_interim", {"text": sentence}, to=sid)
-
-        async def on_error(self, error, **kwargs):
-            logger.error(f"[{sid}] Deepgram Connection Error: {error}")
-
-        # Bind event handlers
-        dg_connection.on(LiveTranscriptionEvents.Transcript, on_message)
-        dg_connection.on(LiveTranscriptionEvents.Error, on_error)
-
-        # Configure LiveOptions according to requirements
-        options = LiveOptions(
-            model="nova-2", 
-            language="en-US",
-            interim_results=True,
-            endpointing="700", # Increased endpointing to 700ms. Deepgram will wait 0.7s of silence before assuming the sentence is over.
-            smart_format=True
-        )
+        ws = await websockets.connect(url, extra_headers=headers)
         
-        # Start the connection
-        if await dg_connection.start(options) is False:
-            logger.error(f"[{sid}] Failed to start Deepgram connection")
-            return None
-            
-        return dg_connection
+        # Background task to read messages from Deepgram
+        async def listen_deepgram():
+            try:
+                async for message in ws:
+                    data = json.loads(message)
+                    
+                    if data.get("type") == "Results":
+                        channel = data.get("channel", {})
+                        alts = channel.get("alternatives", [])
+                        if alts:
+                            sentence = alts[0].get("transcript", "")
+                            if not sentence:
+                                continue
+                                
+                            is_final = data.get("is_final", False)
+                            if is_final:
+                                logger.info(f"[{sid}] Deepgram Final Transcription: {sentence}")
+                                await sio.emit("interviewer_transcription", {"text": sentence}, to=sid)
+                                asyncio.create_task(get_groq_answer(sid, sentence))
+                            else:
+                                await sio.emit("interviewer_interim", {"text": sentence}, to=sid)
+            except websockets.exceptions.ConnectionClosed:
+                logger.info(f"[{sid}] Deepgram websocket connection closed")
+            except Exception as e:
+                logger.error(f"[{sid}] Error reading from Deepgram: {e}")
+                
+        # Start the listening task
+        asyncio.create_task(listen_deepgram())
+        return ws
         
     except Exception as e:
         logger.error(f"[{sid}] Exception setting up Deepgram: {e}")
@@ -167,9 +154,9 @@ async def handle_audio_data(sid, data):
 
         # Check if the frontend sent a KeepAlive message (e.g. string "KeepAlive" instead of bytes)
         if isinstance(data, str) and data == "KeepAlive":
-            # Deepgram accepts an empty KeepAlive message
+            # Deepgram accepts an empty KeepAlive message (JSON string) for raw websockets
             try:
-                await dg_conn.keep_alive()
+                await dg_conn.send(json.dumps({"type": "KeepAlive"}))
             except Exception as e:
                 logger.error(f"[{sid}] KeepAlive internal error: {e}")
             return
@@ -195,8 +182,7 @@ async def handle_disconnect(sid):
     if dg_conn:
         async def close_dg():
             try:
-                # Use timeout to prevent hanging the Uvicorn worker
-                await asyncio.wait_for(dg_conn.finish(), timeout=2.0)
+                await asyncio.wait_for(dg_conn.close(), timeout=2.0)
                 logger.info(f"[{sid}] Deepgram connection closed")
             except Exception as e:
                 logger.error(f"[{sid}] Error or timeout closing Deepgram connection: {e}")
