@@ -118,6 +118,11 @@ export function useInterviewCopilot() {
                 console.error('[Socket] Connection error:', err.message, '| Backend URL:', backendUrl);
             });
 
+            // Handle backend error events (e.g. Deepgram failure)
+            socketRef.current.on('error', (data) => {
+                console.error('[Backend Error]', data.message);
+                alert(`⚠️ Backend Error: ${data.message}`);
+            });
 
             socketRef.current.on('interviewer_transcription', (data) => {
                 if (data.text) {
