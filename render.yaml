@@ -1,0 +1,25 @@
+services:
+  # Backend service
+  - type: web
+    name: helply-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:sio_app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DEEPGRAM_API_KEY
+        sync: false   # Set manually in Render dashboard
+      - key: GROQ_API_KEY
+        sync: false   # Set manually in Render dashboard
+    healthCheckPath: /
+
+  # Frontend static site
+  - type: web
+    name: helply-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_BACKEND_URL
+        sync: false   # Set to your backend URL, e.g. https://helply-backend.onrender.com
