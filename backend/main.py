@@ -36,8 +36,8 @@ sio_app = socketio.ASGIApp(sio, other_asgi_app=app)
 # Initialize Groq
 groq_client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 
-# Track active Deepgram connections per Socket.io session
-active_connections = {}
+# Track active session states: {sid: {"ws": ws_conn, "buffer": "", "timer_task": Task}}
+active_sessions = {}
 
 def should_ignore_voice(audio_chunk: bytes) -> bool:
     """
@@ -50,38 +50,48 @@ def should_ignore_voice(audio_chunk: bytes) -> bool:
 
 async def get_groq_answer(sid: str, transcribed_question: str):
     """
-    Generates an answer using Groq LLaMA 3.3 70B and emits it via socket.
+    Streams an answer using Groq LLaMA 3.3 70B, emitting each chunk via socket as it arrives.
     """
     try:
-        logger.info(f"[{sid}] Generating AI answer for: {transcribed_question}")
+        logger.info(f"[{sid}] Streaming AI answer for: {transcribed_question}")
         
         system_prompt = (
-            "You are a professional SDE interview assistant. "
-            "The user is in a live interview and the input is transcribed speech which may be broken, incomplete, or grammatically incorrect. "
-            "NEVER ask the user to clarify, repeat, or finish their sentence. Start your answer immediately. "
-            "Infer their intent from the available words and provide the best possible concise 3-4 bullet-point answer. "
-            "Focus on technical accuracy and speed."
+            "You are an expert Software Engineer Interview Copilot. "
+            "You are secretly listening to a live interview. "
+            "The input is the transcribed speech of the INTERVIEWER asking a question. "
+            "1. CONTEXT: The input might be broken, incomplete, or a continuation of a previous thought. "
+            "2. YOUR JOB: Provide a concise, highly technical, and impressive answer (3-4 bullet points) that the candidate can use to respond. "
+            "3. BE DIRECT: Do NOT say 'Here are some potential areas' or 'Based on your question'. Just give the exact answer points. "
+            "4. PATIENCE: If the input is just conversational filler ('And what have you done...', 'So as we discussed...'), or if the question is clearly cut off, provide a very brief, low-key response or just one bullet point. Only give a full technical answer when a complete question is identifiable. "
+            "Focus strictly on technical accuracy, brevity, and helping the candidate pass the interview."
         )
-        
-        # We use await to handle this concurrently without blocking other events
-        response = await groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",  # Upgraded to 70B model for much higher technical accuracy
+
+        # Use streaming mode
+        stream = await groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": transcribed_question}
             ],
-            temperature=0.3, # Low temperature for more factual responses
-            max_tokens=250
+            temperature=0.3,
+            max_tokens=250,
+            stream=True,  # <-- STREAMING ENABLED
         )
-        
-        answer = response.choices[0].message.content
-        logger.info(f"[{sid}] Successfully generated AI answer. Emitting to frontend.")
-        
-        # Send the answer back to the frontend
-        await sio.emit("ai_answer", {"text": answer}, to=sid)
-        
+
+        # Emit each chunk as it arrives
+        async for chunk in stream:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                await sio.emit("ai_answer_chunk", {"text": delta}, to=sid)
+
+        # Signal frontend that streaming is done
+        await sio.emit("ai_answer_done", {}, to=sid)
+        logger.info(f"[{sid}] Streaming complete.")
+
     except Exception as e:
-        logger.error(f"[{sid}] Error generating answer from Groq: {e}")
+        logger.error(f"[{sid}] Error streaming answer from Groq: {e}")
+        await sio.emit("ai_answer_done", {}, to=sid)  # Always signal done even on error
+
 
 
 async def create_deepgram_client_connection(sid: str):
@@ -89,7 +99,9 @@ async def create_deepgram_client_connection(sid: str):
     Creates and starts a live Deepgram websocket connection for a given Socket.io session using standard websockets to avoid SDK lockups.
     """
     try:
-        url = "wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&interim_results=true&endpointing=700&smart_format=true"
+        # Increased endpointing to 5000ms (5 seconds) for initial Deepgram break
+        # Added smart_format=true for better readability
+        url = "wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&interim_results=true&endpointing=5000&smart_format=true"
         headers = {"Authorization": f"Token {settings.DEEPGRAM_API_KEY}"}
         
         ws = await websockets.connect(url, extra_headers=headers)
@@ -110,11 +122,24 @@ async def create_deepgram_client_connection(sid: str):
                                 
                             is_final = data.get("is_final", False)
                             if is_final:
-                                logger.info(f"[{sid}] Deepgram Final Transcription: {sentence}")
-                                await sio.emit("interviewer_transcription", {"text": sentence}, to=sid)
-                                asyncio.create_task(get_groq_answer(sid, sentence))
+                                logger.info(f"[{sid}] Deepgram Final Fragment: {sentence}")
+                                
+                                # Access session data
+                                session = active_sessions.get(sid)
+                                if not session:
+                                    continue
+                                
+                                # Update buffer (no auto-timer — user will manually request answer)
+                                session["buffer"] = (session["buffer"] + " " + sentence).strip()
+                                
+                                # Emit accumulated transcript to frontend
+                                await sio.emit("interviewer_transcription", {"text": session["buffer"]}, to=sid)
+                                
                             else:
-                                await sio.emit("interviewer_interim", {"text": sentence}, to=sid)
+                                session = active_sessions.get(sid)
+                                current_buffer = session["buffer"] if session else ""
+                                interim_display = (current_buffer + " " + sentence).strip()
+                                await sio.emit("interviewer_interim", {"text": interim_display}, to=sid)
             except websockets.exceptions.ConnectionClosed:
                 logger.info(f"[{sid}] Deepgram websocket connection closed")
             except Exception as e:
@@ -135,7 +160,10 @@ async def handle_connect(sid, environ):
     dg_conn = await create_deepgram_client_connection(sid)
     
     if dg_conn:
-        active_connections[sid] = dg_conn
+        active_sessions[sid] = {
+            "ws": dg_conn,
+            "buffer": "",
+        }
         logger.info(f"[{sid}] Real-time audio processing initialized")
     else:
         logger.error(f"[{sid}] Dropping socket connection due to deepgram failure")
@@ -147,10 +175,12 @@ async def handle_audio_data(sid, data):
     Receives raw audio chunks from frontend and sends them to Deepgram.
     """
     try:
-        dg_conn = active_connections.get(sid)
-        if not dg_conn:
-            logger.warning(f"[{sid}] Received audio but no Deepgram connection active.")
+        session = active_sessions.get(sid)
+        if not session:
+            logger.warning(f"[{sid}] Received audio but no session active.")
             return
+
+        dg_conn = session["ws"]
 
         # Check if the frontend sent a KeepAlive message (e.g. string "KeepAlive" instead of bytes)
         if isinstance(data, str) and data == "KeepAlive":
@@ -173,13 +203,30 @@ async def handle_audio_data(sid, data):
     except Exception as e:
         logger.error(f"[{sid}] Exception sending audio to deepgram: {e}")
 
+@sio.on("get_answer")
+async def handle_get_answer(sid, data=None):
+    """
+    Manually triggered by the frontend button.
+    Takes the current buffer and sends it to Groq for an AI answer.
+    """
+    session = active_sessions.get(sid)
+    if not session or not session["buffer"]:
+        logger.warning(f"[{sid}] get_answer called but buffer is empty.")
+        await sio.emit("ai_answer", {"text": "⚠️ No question detected yet. Please wait for the interviewer to speak."}, to=sid)
+        return
+
+    full_text = session["buffer"]
+    session["buffer"] = ""  # Clear buffer after triggering
+    logger.info(f"[{sid}] Manual get_answer triggered for: {full_text}")
+    await get_groq_answer(sid, full_text)
+
 @sio.on("disconnect")
 async def handle_disconnect(sid):
     logger.info(f"[{sid}] Socket client disconnected")
-    dg_conn = active_connections.pop(sid, None)
+    session = active_sessions.pop(sid, None)
     
-    # Gracefully close Deepgram connection in the background so it doesn't block the event loop
-    if dg_conn:
+    if session:
+        dg_conn = session["ws"]
         async def close_dg():
             try:
                 await asyncio.wait_for(dg_conn.close(), timeout=2.0)

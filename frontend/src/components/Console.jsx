@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 
-export function Console({ transcript, interimTranscript }) {
+export function Console({ transcript, interimTranscript, onDelete }) {
     const containerRef = useRef(null);
 
     // Auto-scroll logic to push view to bottom automatically
@@ -9,6 +9,10 @@ export function Console({ transcript, interimTranscript }) {
             containerRef.current.scrollTop = containerRef.current.scrollHeight;
         }
     }, [transcript, interimTranscript]);
+
+    // Check if the last transcript entry is an accumulating interviewer bubble
+    const lastItem = transcript[transcript.length - 1];
+    const lastIsAccumulating = lastItem && lastItem.role === 'interviewer' && lastItem.accumulating;
 
     return (
         <div
@@ -27,22 +31,62 @@ export function Console({ transcript, interimTranscript }) {
                     </div>
                 ) : (
                     <>
-                        {transcript.map((item, index) => (
-                            <div key={index} className={`flex w-full animate-in fade-in slide-in-from-bottom-2 duration-300 ${item.role === 'ai' ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[90%] md:max-w-[80%] flex flex-col gap-1.5`}>
-                                    <span className={`text-xs font-semibold tracking-wider uppercase px-1 ${item.role === 'ai' ? 'text-indigo-400 text-right' : 'text-zinc-500 text-left'}`}>
-                                        {item.role === 'interviewer' ? 'Interviewer' : 'AI Copilot'}
-                                    </span>
-                                    <div className={`p-4 md:p-5 text-[1.1rem] md:text-[1.15rem] leading-relaxed whitespace-pre-wrap ${item.role === 'ai'
-                                            ? 'bg-gradient-to-br from-indigo-600 to-purple-700 text-white rounded-2xl rounded-tr-sm shadow-lg shadow-indigo-900/40'
-                                            : 'bg-white/10 backdrop-blur-md border border-white/10 text-zinc-100 rounded-2xl rounded-tl-sm shadow-md shadow-black/20'
-                                        }`}>
-                                        {item.text}
+                        {transcript.map((item, index) => {
+                            const isLast = index === transcript.length - 1;
+                            const showInlineInterim = isLast && item.role === 'interviewer' && item.accumulating && interimTranscript;
+                            return (
+                                <div key={index} className={`flex w-full animate-in fade-in slide-in-from-bottom-2 duration-300 ${item.role === 'ai' ? 'justify-end' : 'justify-start'}`}>
+                                    <div className={`max-w-[90%] md:max-w-[80%] flex flex-col gap-1.5`}>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-xs font-semibold tracking-wider uppercase px-1 ${item.role === 'ai' ? 'text-indigo-400' : 'text-zinc-500'}`}>
+                                                {item.role === 'interviewer' ? 'Interviewer' : 'AI Copilot'}
+                                            </span>
+                                            {/* Listening indicator in label when accumulating */}
+                                            {showInlineInterim && (
+                                                <span className="flex items-center gap-1 text-xs text-emerald-400 font-semibold tracking-wider uppercase">
+                                                    <span className="relative flex h-1.5 w-1.5">
+                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                                                    </span>
+                                                    Listening
+                                                </span>
+                                            )}
+                                        </div>
+                                        {/* Bubble + delete button side by side */}
+                                        <div className="flex items-start gap-2">
+                                            <div className={`p-4 md:p-5 text-[1.1rem] md:text-[1.15rem] leading-relaxed whitespace-pre-wrap ${item.role === 'ai'
+                                                ? 'bg-gradient-to-br from-indigo-600 to-purple-700 text-white rounded-2xl rounded-tr-sm shadow-lg shadow-indigo-900/40'
+                                                : 'bg-white/10 backdrop-blur-md border border-white/10 text-zinc-100 rounded-2xl rounded-tl-sm shadow-md shadow-black/20'
+                                                }`}>
+                                                {item.text}
+                                                {/* Inline interim text inside the same bubble */}
+                                                {showInlineInterim && (
+                                                    <span className="text-zinc-400 italic"> {interimTranscript}</span>
+                                                )}
+                                                {/* Blinking cursor while AI streaming */}
+                                                {item.streaming && (
+                                                    <span className="inline-block w-0.5 h-5 bg-white/80 ml-0.5 align-middle animate-pulse" />
+                                                )}
+                                            </div>
+                                            {item.role === 'interviewer' && (
+                                                <button
+                                                    onClick={() => onDelete(index)}
+                                                    className="mt-1 flex-shrink-0 text-rose-400 hover:text-rose-300 hover:scale-110 transition-all duration-200 p-1"
+                                                    title="Delete"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
-                        {interimTranscript && (
+                            );
+                        })}
+
+                        {/* Standalone Listening bubble — only when no accumulating entry exists */}
+                        {interimTranscript && !lastIsAccumulating && (
                             <div className="flex w-full justify-start animate-in fade-in duration-200">
                                 <div className="max-w-[90%] md:max-w-[80%] flex flex-col gap-1.5 opacity-80">
                                     <span className="text-xs font-semibold tracking-wider uppercase px-1 text-emerald-400 text-left flex items-center gap-2">
@@ -64,3 +108,4 @@ export function Console({ transcript, interimTranscript }) {
         </div>
     );
 }
+
