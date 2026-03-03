@@ -105,12 +105,21 @@ async def create_deepgram_client_connection(sid: str):
     Creates and starts a live Deepgram websocket connection for a given Socket.io session using standard websockets to avoid SDK lockups.
     """
     try:
+        if not settings.DEEPGRAM_API_KEY:
+            logger.error(f"[{sid}] DEEPGRAM_API_KEY is not set!")
+            return None
+
         # Increased endpointing to 5000ms (5 seconds) for initial Deepgram break
         # Added smart_format=true for better readability
         url = "wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&interim_results=true&endpointing=5000&smart_format=true"
         headers = {"Authorization": f"Token {settings.DEEPGRAM_API_KEY}"}
         
-        ws = await websockets.connect(url, extra_headers=headers)
+        logger.info(f"[{sid}] Connecting to Deepgram...")
+        ws = await asyncio.wait_for(
+            websockets.connect(url, extra_headers=headers),
+            timeout=15.0
+        )
+        logger.info(f"[{sid}] Deepgram connected successfully.")
         
         # Background task to read messages from Deepgram
         async def listen_deepgram():
@@ -155,8 +164,11 @@ async def create_deepgram_client_connection(sid: str):
         asyncio.create_task(listen_deepgram())
         return ws
         
+    except asyncio.TimeoutError:
+        logger.error(f"[{sid}] Deepgram connection timed out after 15 seconds")
+        return None
     except Exception as e:
-        logger.error(f"[{sid}] Exception setting up Deepgram: {e}")
+        logger.error(f"[{sid}] Exception setting up Deepgram: {type(e).__name__}: {e}")
         return None
 
 
@@ -172,8 +184,12 @@ async def handle_connect(sid, environ):
         }
         logger.info(f"[{sid}] Real-time audio processing initialized")
     else:
-        logger.error(f"[{sid}] Dropping socket connection due to deepgram failure")
-        await sio.disconnect(sid)
+        logger.error(f"[{sid}] Deepgram connection failed — session will run without transcription")
+        active_sessions[sid] = {
+            "ws": None,
+            "buffer": "",
+        }
+        await sio.emit("error", {"message": "Transcription service unavailable. Check API keys."}, to=sid)
 
 @sio.on("audio_data")
 async def handle_audio_data(sid, data):
@@ -187,6 +203,10 @@ async def handle_audio_data(sid, data):
             return
 
         dg_conn = session["ws"]
+
+        # If Deepgram connection is not available, skip silently
+        if dg_conn is None:
+            return
 
         # Check if the frontend sent a KeepAlive message (e.g. string "KeepAlive" instead of bytes)
         if isinstance(data, str) and data == "KeepAlive":
