@@ -31,6 +31,12 @@ sio = socketio.AsyncServer(
 app = FastAPI(title="Interview Copilot Backend")
 sio_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
+# Health check route for Render / uptime monitors
+@app.get("/")
+async def root():
+    return {"status": "ok", "service": "Interview Copilot Backend"}
+
+
 # Deepgram Options are no longer needed globally if we use raw websockets
 
 # Initialize Groq
