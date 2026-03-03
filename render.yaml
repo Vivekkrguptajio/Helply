@@ -20,6 +20,13 @@ services:
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: dist
+    headers:
+      - path: /assets/*.js
+        name: Content-Type
+        value: application/javascript; charset=utf-8
+      - path: /assets/*.css
+        name: Content-Type
+        value: text/css; charset=utf-8
     envVars:
       - key: VITE_BACKEND_URL
-        sync: false   # Set to your backend URL, e.g. https://helply-backend.onrender.com
+        sync: false   # Set to your BACKEND service URL (NOT frontend URL!)
