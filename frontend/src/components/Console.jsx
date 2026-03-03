@@ -54,7 +54,7 @@ export function Console({ transcript, interimTranscript, onDelete }) {
                                         </div>
                                         {/* Bubble + delete button side by side */}
                                         <div className="flex items-start gap-2">
-                                            <div className={`p-3 md:p-5 text-base md:text-[1.1rem] leading-relaxed whitespace-pre-wrap ${item.role === 'ai'
+                                            <div className={`p-4 md:p-5 text-[1.1rem] md:text-[1.15rem] leading-relaxed whitespace-pre-wrap ${item.role === 'ai'
                                                 ? 'bg-gradient-to-br from-indigo-600 to-purple-700 text-white rounded-2xl rounded-tr-sm shadow-lg shadow-indigo-900/40'
                                                 : 'bg-white/10 backdrop-blur-md border border-white/10 text-zinc-100 rounded-2xl rounded-tl-sm shadow-md shadow-black/20'
                                                 }`}>
