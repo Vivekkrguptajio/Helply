@@ -102,8 +102,6 @@ export function useInterviewCopilot() {
             console.log('[Socket] Connecting to backend:', backendUrl);
             socketRef.current = io(backendUrl, {
                 transports: ['websocket', 'polling'],
-                timeout: 10000,
-                reconnection: false,
             });
 
             // 4. Start MediaRecorder ONLY after socket is confirmed connected
@@ -115,11 +113,9 @@ export function useInterviewCopilot() {
                 }
             });
 
-            // Handle connection failure — show clear error to user
+            // Log connection errors — do NOT stopRecording here (that breaks local too)
             socketRef.current.on('connect_error', (err) => {
-                console.error('[Socket] Connection error:', err.message);
-                alert(`❌ Backend connection failed!\n\nURL: ${backendUrl}\nError: ${err.message}\n\nPlease check that VITE_BACKEND_URL is set correctly in your deployment environment.`);
-                stopRecording();
+                console.error('[Socket] Connection error:', err.message, '| Backend URL:', backendUrl);
             });
 
 
