@@ -3,5 +3,6 @@ uvicorn
 python-socketio
 pydantic
 pydantic-settings
+python-dotenv
 websockets>=11.0.3
 groq

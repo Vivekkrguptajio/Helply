@@ -11,16 +11,16 @@ from groq import AsyncGroq
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Settings (using pydantic-settings to read from environment or .env file)
-class Settings(BaseSettings):
-    DEEPGRAM_API_KEY: str = ""
-    GROQ_API_KEY: str = ""
+import os
+from dotenv import load_dotenv
+load_dotenv()  # loads .env locally; on Render, env vars are already set
 
-    class Config:
-        env_file = ".env"
-        extra = "ignore" # in case other vars exist
+# Read API keys directly from environment
+DEEPGRAM_API_KEY = os.environ.get("DEEPGRAM_API_KEY", "")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
-settings = Settings()
+logger.info(f"[Startup] DEEPGRAM_API_KEY set: {bool(DEEPGRAM_API_KEY)} (length: {len(DEEPGRAM_API_KEY)})")
+logger.info(f"[Startup] GROQ_API_KEY set: {bool(GROQ_API_KEY)} (length: {len(GROQ_API_KEY)})")
 
 # Initialize FastAPI and Socket.io. Adding standard websocket transports array to solve closed before establishment error.
 sio = socketio.AsyncServer(
@@ -36,6 +36,15 @@ sio_app = socketio.ASGIApp(sio, other_asgi_app=app)
 async def root():
     return {"status": "ok", "service": "Interview Copilot Backend"}
 
+# Debug endpoint — shows if API keys are loaded (does NOT expose key values)
+@app.get("/debug-env")
+async def debug_env():
+    return {
+        "deepgram_key_set": bool(DEEPGRAM_API_KEY),
+        "deepgram_key_length": len(DEEPGRAM_API_KEY),
+        "groq_key_set": bool(GROQ_API_KEY),
+        "groq_key_length": len(GROQ_API_KEY),
+    }
 
 # Deepgram Options are no longer needed globally if we use raw websockets
 
