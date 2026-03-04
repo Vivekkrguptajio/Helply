@@ -113,14 +113,14 @@ async def create_deepgram_client_connection(sid: str):
     Creates and starts a live Deepgram websocket connection for a given Socket.io session using standard websockets to avoid SDK lockups.
     """
     try:
-        if not settings.DEEPGRAM_API_KEY:
+        if not DEEPGRAM_API_KEY:
             logger.error(f"[{sid}] DEEPGRAM_API_KEY is not set!")
             return None
 
         # Increased endpointing to 5000ms (5 seconds) for initial Deepgram break
         # Added smart_format=true for better readability
         url = "wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&interim_results=true&endpointing=5000&smart_format=true"
-        headers = {"Authorization": f"Token {settings.DEEPGRAM_API_KEY}"}
+        headers = {"Authorization": f"Token {DEEPGRAM_API_KEY}"}
         
         logger.info(f"[{sid}] Connecting to Deepgram...")
         ws = await asyncio.wait_for(
