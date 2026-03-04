@@ -250,6 +250,15 @@ export function useInterviewCopilot() {
     const clearTranscript = useCallback(() => {
         setTranscript([]);
         setInterimTranscript("");
+        // Auto-resume if paused
+        if (isPausedRef.current) {
+            isPausedRef.current = false;
+            setIsPaused(false);
+            if (keepAliveIntervalRef.current) {
+                clearInterval(keepAliveIntervalRef.current);
+                keepAliveIntervalRef.current = null;
+            }
+        }
         // Also clear the backend buffer so old text doesn't mix in
         if (socketRef.current?.connected) {
             socketRef.current.emit('clear_buffer');
