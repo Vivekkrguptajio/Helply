@@ -1,18 +1,17 @@
 import asyncio
 import logging
+import os
 from fastapi import FastAPI
 import socketio
 import json
 import websockets
-from pydantic_settings import BaseSettings
+from dotenv import load_dotenv
 from groq import AsyncGroq
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-import os
-from dotenv import load_dotenv
 load_dotenv()  # loads .env locally; on Render, env vars are already set
 
 # Read API keys directly from environment
