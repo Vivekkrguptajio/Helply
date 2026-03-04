@@ -122,11 +122,20 @@ async def create_deepgram_client_connection(sid: str):
         url = "wss://api.deepgram.com/v1/listen?model=nova-2&language=en-US&interim_results=true&endpointing=5000&smart_format=true"
         headers = {"Authorization": f"Token {DEEPGRAM_API_KEY}"}
         
-        logger.info(f"[{sid}] Connecting to Deepgram...")
-        ws = await asyncio.wait_for(
-            websockets.connect(url, extra_headers=headers),
-            timeout=15.0
-        )
+        logger.info(f"[{sid}] Connecting to Deepgram... (websockets version: {websockets.__version__})")
+        
+        # websockets v14+ uses 'additional_headers', older uses 'extra_headers'
+        try:
+            ws = await asyncio.wait_for(
+                websockets.connect(url, additional_headers=headers),
+                timeout=15.0
+            )
+        except TypeError:
+            # Fallback for older websockets versions
+            ws = await asyncio.wait_for(
+                websockets.connect(url, extra_headers=headers),
+                timeout=15.0
+            )
         logger.info(f"[{sid}] Deepgram connected successfully.")
         
         # Background task to read messages from Deepgram
@@ -261,14 +270,15 @@ async def handle_disconnect(sid):
     
     if session:
         dg_conn = session["ws"]
-        async def close_dg():
-            try:
-                await asyncio.wait_for(dg_conn.close(), timeout=2.0)
-                logger.info(f"[{sid}] Deepgram connection closed")
-            except Exception as e:
-                logger.error(f"[{sid}] Error or timeout closing Deepgram connection: {e}")
-        
-        asyncio.create_task(close_dg())
+        if dg_conn is not None:
+            async def close_dg():
+                try:
+                    await asyncio.wait_for(dg_conn.close(), timeout=2.0)
+                    logger.info(f"[{sid}] Deepgram connection closed")
+                except Exception as e:
+                    logger.error(f"[{sid}] Error or timeout closing Deepgram connection: {e}")
+            
+            asyncio.create_task(close_dg())
 
 if __name__ == "__main__":
     import uvicorn
