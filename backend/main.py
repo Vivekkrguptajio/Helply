@@ -48,7 +48,7 @@ async def debug_env():
 # Deepgram Options are no longer needed globally if we use raw websockets
 
 # Initialize Groq
-groq_client = AsyncGroq(api_key=settings.GROQ_API_KEY)
+groq_client = AsyncGroq(api_key=GROQ_API_KEY)
 
 # Track active session states: {sid: {"ws": ws_conn, "buffer": "", "timer_task": Task}}
 active_sessions = {}
