@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function Controls({ isRecording, isPaused, hasTranscript, onStart, onStop, onTogglePause, onRequestAnswer }) {
+export function Controls({ isRecording, isPaused, hasTranscript, onStart, onStop, onTogglePause, onRequestAnswer, onClearAll }) {
     return (
         <div className="px-3 py-3 md:p-6 backdrop-blur-md bg-black/40 border-t border-white/10 shrink-0 z-10 w-full"
             style={{ paddingBottom: 'max(0.75rem, var(--safe-bottom))' }}
@@ -28,18 +28,17 @@ export function Controls({ isRecording, isPaused, hasTranscript, onStart, onStop
                             <span className="text-lg">✨</span>
                             <span>Get AI Answer</span>
                         </button>
-                        {/* Pause + Stop — side by side */}
-                        <div className="flex flex-row gap-2.5 md:gap-3">
+                        {/* Pause + Clear + Stop — side by side */}
+                        <div className="flex flex-row gap-2 md:gap-3">
                             <button
                                 onClick={onTogglePause}
-                                className={`relative flex-1 py-3 md:py-4 text-sm md:text-base font-bold rounded-2xl active:scale-[0.97] transition-all duration-300 flex items-center justify-center gap-1.5 md:gap-2 tap-target ${isPaused
+                                className={`relative flex-1 py-3 md:py-4 text-sm md:text-base font-bold rounded-2xl active:scale-[0.97] transition-all duration-300 flex items-center justify-center gap-1.5 tap-target ${isPaused
                                     ? "text-amber-400 bg-amber-500/10 border border-amber-500/30 shadow-[0_0_20px_rgba(251,191,36,0.15)] hover:bg-amber-500/20"
                                     : "text-blue-400 bg-blue-500/10 border border-blue-500/30 shadow-[0_0_20px_rgba(59,130,246,0.15)] hover:bg-blue-500/20"
                                     }`}
                             >
                                 {isPaused ? (
                                     <>
-                                        {/* Play icon */}
                                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                                             <path d="M8 5v14l11-7z" />
                                         </svg>
@@ -47,7 +46,6 @@ export function Controls({ isRecording, isPaused, hasTranscript, onStart, onStop
                                     </>
                                 ) : (
                                     <>
-                                        {/* Pause icon */}
                                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                                             <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                                         </svg>
@@ -55,11 +53,21 @@ export function Controls({ isRecording, isPaused, hasTranscript, onStart, onStop
                                     </>
                                 )}
                             </button>
+                            {/* Clear All Chat */}
+                            <button
+                                onClick={onClearAll}
+                                className="relative flex-1 py-3 md:py-4 text-sm md:text-base font-bold text-zinc-400 bg-white/5 border border-white/10 rounded-2xl active:scale-[0.97] transition-all duration-300 hover:bg-white/10 hover:text-zinc-200 flex items-center justify-center gap-1.5 tap-target"
+                            >
+                                {/* Broom / Clear icon */}
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <span>Clear</span>
+                            </button>
                             <button
                                 onClick={onStop}
-                                className="relative flex-1 py-3 md:py-4 text-sm md:text-base font-bold text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-2xl shadow-[0_0_20px_rgba(244,63,94,0.15)] active:scale-[0.97] transition-all duration-300 hover:bg-rose-500/20 hover:shadow-[0_0_25px_rgba(244,63,94,0.25)] flex items-center justify-center gap-1.5 md:gap-2 tap-target"
+                                className="relative flex-1 py-3 md:py-4 text-sm md:text-base font-bold text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-2xl shadow-[0_0_20px_rgba(244,63,94,0.15)] active:scale-[0.97] transition-all duration-300 hover:bg-rose-500/20 hover:shadow-[0_0_25px_rgba(244,63,94,0.25)] flex items-center justify-center gap-1.5 tap-target"
                             >
-                                {/* Stop icon */}
                                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                                     <rect x="6" y="6" width="12" height="12" rx="1" />
                                 </svg>

@@ -247,6 +247,15 @@ export function useInterviewCopilot() {
         }
     };
 
+    const clearTranscript = useCallback(() => {
+        setTranscript([]);
+        setInterimTranscript("");
+        // Also clear the backend buffer so old text doesn't mix in
+        if (socketRef.current?.connected) {
+            socketRef.current.emit('clear_buffer');
+        }
+    }, []);
+
     return {
         isRecording,
         isPaused,
@@ -258,5 +267,6 @@ export function useInterviewCopilot() {
         togglePause,
         requestAnswer,
         deleteTranscript,
+        clearTranscript,
     };
 }

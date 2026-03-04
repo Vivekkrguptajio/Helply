@@ -6,7 +6,7 @@ import { Controls } from './components/Controls';
 import { UserManual } from './components/UserManual';
 
 export default function App() {
-  const { isRecording, isPaused, transcript, interimTranscript, hasTranscript, startRecording, stopRecording, togglePause, requestAnswer, deleteTranscript } = useInterviewCopilot();
+  const { isRecording, isPaused, transcript, interimTranscript, hasTranscript, startRecording, stopRecording, togglePause, requestAnswer, deleteTranscript, clearTranscript } = useInterviewCopilot();
 
   const [showManual, setShowManual] = useState(false);
 
@@ -30,6 +30,7 @@ export default function App() {
         onStop={stopRecording}
         onTogglePause={togglePause}
         onRequestAnswer={requestAnswer}
+        onClearAll={clearTranscript}
       />
       {showManual && <UserManual onClose={() => setShowManual(false)} />}
     </div>

@@ -246,6 +246,14 @@ async def handle_audio_data(sid, data):
     except Exception as e:
         logger.error(f"[{sid}] Exception sending audio to deepgram: {e}")
 
+@sio.on("clear_buffer")
+async def handle_clear_buffer(sid, data=None):
+    """Clears the transcription buffer for this session."""
+    session = active_sessions.get(sid)
+    if session:
+        session["buffer"] = ""
+        logger.info(f"[{sid}] Buffer cleared by user")
+
 @sio.on("get_answer")
 async def handle_get_answer(sid, data=None):
     """
