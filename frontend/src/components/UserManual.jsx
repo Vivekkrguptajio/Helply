@@ -6,6 +6,11 @@ const content = {
         subtitle: "Your AI-powered interview assistant",
         steps: [
             {
+                icon: "📄",
+                title: "Upload Resume (optional)",
+                desc: "Upload your resume (PDF / DOCX / TXT) so the AI answers 'tell me about yourself' and 'explain your project' from your real experience."
+            },
+            {
                 icon: "🎙️",
                 title: "Start Session",
                 desc: "Tap the green 'Start Session' button and allow microphone access. The app will listen to the interviewer's questions."
@@ -38,6 +43,11 @@ const content = {
         title: "👋 Interview Copilot में आपका स्वागत है",
         subtitle: "AI-संचालित इंटरव्यू सहायक",
         steps: [
+            {
+                icon: "📄",
+                title: "रिज़्यूमे अपलोड करें (वैकल्पिक)",
+                desc: "अपना रिज़्यूमे (PDF / DOCX / TXT) अपलोड करें ताकि AI 'अपने बारे में बताइए' और 'प्रोजेक्ट समझाइए' जैसे सवालों का जवाब आपके असली अनुभव से दे।"
+            },
             {
                 icon: "🎙️",
                 title: "सेशन शुरू करें",

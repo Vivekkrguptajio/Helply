@@ -1,8 +1,9 @@
 fastapi
 uvicorn
 python-socketio
-pydantic
-pydantic-settings
+python-multipart
 python-dotenv
 websockets>=11.0.3
 groq
+pypdf
+python-docx

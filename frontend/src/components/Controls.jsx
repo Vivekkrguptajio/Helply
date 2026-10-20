@@ -1,11 +1,70 @@
 import React from 'react';
 
-export function Controls({ isRecording, isPaused, hasTranscript, onStart, onStop, onTogglePause, onRequestAnswer, onClearAll }) {
+export function Controls({ audioSource, onChangeAudioSource, autoAnswer, onChangeAutoAnswer, answerLength, onChangeAnswerLength, jobContext, hasAnswer, onRegenerate, isRecording, isPaused, resume, onOpenProfile, onStart, onStop, onTogglePause, onRequestAnswer, onClearAll }) {
     return (
         <div className="px-3 py-3 md:p-6 backdrop-blur-md bg-black/40 border-t border-white/10 shrink-0 z-10 w-full"
             style={{ paddingBottom: 'max(0.75rem, var(--safe-bottom))' }}
         >
             <div className="max-w-2xl mx-auto flex flex-col gap-2.5 md:gap-3">
+                {!isRecording && (
+                    <div className="flex flex-col gap-1">
+                        {/* Resume + target role live in the sidebar (set once); this row just shows their status */}
+                        <button
+                            onClick={onOpenProfile}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs md:text-sm text-left transition-colors ${resume
+                                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/20'
+                                : 'bg-amber-500/10 border-amber-500/30 text-amber-200 hover:bg-amber-500/20'}`}
+                        >
+                            <span className="flex-1 truncate">
+                                {resume ? `📄 ${resume.name}` : '📄 No resume: answers about you will be generic'}
+                                {' · '}
+                                {jobContext ? '🎯 Role set' : '🎯 No role'}
+                            </span>
+                            <span className="font-semibold">{resume ? 'Edit ›' : 'Add ›'}</span>
+                        </button>
+                        <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-white/5 border border-white/10 text-xs md:text-sm font-semibold">
+                            {[['mic', '🎙️ Mic'], ['system', '🔊 System'], ['both', '🎙️+🔊 Both']].map(([value, label]) => (
+                                <button
+                                    key={value}
+                                    onClick={() => onChangeAudioSource(value)}
+                                    className={`py-2 rounded-lg transition-colors ${audioSource === value ? 'bg-indigo-500/30 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                        <p className="text-[11px] md:text-xs text-zinc-500 px-1">
+                            {audioSource === 'both'
+                                ? "Best for calls: hears the interviewer (system audio) AND you (mic), and answers only the interviewer's questions. Use earphones so your mic doesn't pick up their voice. Desktop Chrome/Edge: choose \"Entire screen\" and tick \"Share system audio\"."
+                                : audioSource === 'system'
+                                    ? 'Captures only the call/computer sound (the interviewer). Your voice is ignored, so no Pause needed. Desktop Chrome/Edge: choose "Entire screen" and tick "Share system audio".'
+                                    : 'Listens through your microphone. Use Pause while you speak your answer.'}
+                        </p>
+                        <label className="flex items-center gap-2 px-1 text-xs md:text-sm text-zinc-300 cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={autoAnswer}
+                                onChange={(e) => onChangeAutoAnswer(e.target.checked)}
+                                className="accent-indigo-500"
+                            />
+                            Auto-answer when the interviewer finishes a question
+                        </label>
+                        <div className="flex items-center gap-2 px-1">
+                            <span className="text-xs md:text-sm text-zinc-300">Answer length:</span>
+                            <div className="flex-1 grid grid-cols-3 gap-1 p-0.5 rounded-lg bg-white/5 border border-white/10 text-xs font-semibold">
+                                {[['short', 'Short'], ['normal', 'Normal'], ['detailed', 'Detailed']].map(([value, label]) => (
+                                    <button
+                                        key={value}
+                                        onClick={() => onChangeAnswerLength(value)}
+                                        className={`py-1.5 rounded-md transition-colors ${answerLength === value ? 'bg-indigo-500/30 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
                 {!isRecording ? (
                     <button
                         onClick={onStart}
@@ -20,6 +79,19 @@ export function Controls({ isRecording, isPaused, hasTranscript, onStart, onStop
                     </button>
                 ) : (
                     <div className="flex flex-col gap-2.5 md:gap-3">
+                        {hasAnswer && (
+                            <div className="flex flex-row gap-2">
+                                {[['again', '🔄 Redo'], ['shorter', '✂️ Shorter'], ['simpler', '💬 Simpler']].map(([mode, label]) => (
+                                    <button
+                                        key={mode}
+                                        onClick={() => onRegenerate(mode)}
+                                        className="flex-1 py-2 text-xs md:text-sm font-semibold text-indigo-200 bg-indigo-500/10 border border-indigo-500/30 rounded-xl hover:bg-indigo-500/20 active:scale-[0.97] transition-all"
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                         {/* Get AI Answer — full width, prominent */}
                         <button
                             onClick={onRequestAnswer}
@@ -27,6 +99,7 @@ export function Controls({ isRecording, isPaused, hasTranscript, onStart, onStop
                         >
                             <span className="text-lg">✨</span>
                             <span>Get AI Answer</span>
+                            <span className="hidden md:inline text-xs font-normal opacity-60">(Space)</span>
                         </button>
                         {/* Pause + Clear + Stop — side by side */}
                         <div className="flex flex-row gap-2 md:gap-3">

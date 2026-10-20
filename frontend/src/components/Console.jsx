@@ -1,6 +1,27 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { FormattedText } from './FormattedText';
 
-export function Console({ transcript, interimTranscript, onDelete }) {
+function CopyButton({ text }) {
+    const [copied, setCopied] = useState(false);
+    const copy = async () => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+        } catch { /* clipboard unavailable */ }
+    };
+    return (
+        <button
+            onClick={copy}
+            className="mt-1 flex-shrink-0 text-xs text-indigo-300/70 hover:text-indigo-200 active:scale-90 transition-all p-1.5 tap-target"
+            title="Copy answer"
+        >
+            {copied ? '✓ Copied' : '📋 Copy'}
+        </button>
+    );
+}
+
+export function Console({ transcript, interimTranscript, onDelete, fontScale = 1 }) {
     const containerRef = useRef(null);
 
     // Auto-scroll logic to push view to bottom automatically
@@ -19,7 +40,7 @@ export function Console({ transcript, interimTranscript, onDelete }) {
             ref={containerRef}
             className="flex-1 overflow-y-auto px-3 py-3 md:p-8 space-y-4 md:space-y-8 scroll-smooth z-0"
         >
-            <div className="max-w-4xl mx-auto space-y-4 md:space-y-6">
+            <div className="max-w-4xl mx-auto space-y-4 md:space-y-6" style={{ zoom: fontScale }}>
                 {transcript.length === 0 && !interimTranscript ? (
                     <div className="flex flex-col items-center justify-center h-full mt-16 md:mt-20 text-zinc-500 space-y-3 md:space-y-4">
                         <div className="w-12 h-12 md:w-16 md:h-16 rounded-full border border-white/10 bg-white/5 flex items-center justify-center shadow-inner">
@@ -36,11 +57,11 @@ export function Console({ transcript, interimTranscript, onDelete }) {
                             const isLast = index === transcript.length - 1;
                             const showInlineInterim = isLast && item.role === 'interviewer' && item.accumulating && interimTranscript;
                             return (
-                                <div key={index} className={`flex w-full animate-fade-in-up ${item.role === 'ai' ? 'justify-end' : 'justify-start'}`}>
+                                <div key={index} className={`flex w-full animate-fade-in-up ${item.role === 'ai' ? 'justify-end' : 'justify-start'} ${item.role === 'you' ? 'opacity-70' : ''}`}>
                                     <div className={`max-w-[92%] md:max-w-[80%] flex flex-col gap-1`}>
                                         <div className="flex items-center gap-1.5 md:gap-2">
                                             <span className={`text-[10px] md:text-xs font-semibold tracking-wider uppercase px-0.5 md:px-1 ${item.role === 'ai' ? 'text-indigo-400' : 'text-zinc-500'}`}>
-                                                {item.role === 'interviewer' ? 'Interviewer' : 'AI Copilot'}
+                                                {item.role === 'interviewer' ? 'Interviewer' : item.role === 'you' ? 'You' : 'AI Copilot'}
                                             </span>
                                             {/* Listening indicator in label when accumulating */}
                                             {showInlineInterim && (
@@ -55,11 +76,18 @@ export function Console({ transcript, interimTranscript, onDelete }) {
                                         </div>
                                         {/* Bubble + delete button side by side */}
                                         <div className="flex items-start gap-1.5 md:gap-2">
-                                            <div className={`p-3 md:p-5 text-sm md:text-[1.15rem] leading-relaxed whitespace-pre-wrap ${item.role === 'ai'
+                                            <div className={`p-3 md:p-5 text-sm md:text-[1.15rem] leading-relaxed ${item.role === 'ai' ? '' : 'whitespace-pre-wrap'} ${item.role === 'ai'
                                                 ? 'bg-gradient-to-br from-indigo-600 to-purple-700 text-white rounded-2xl rounded-tr-sm shadow-lg shadow-indigo-900/40'
-                                                : 'bg-white/8 backdrop-blur-md border border-white/10 text-zinc-100 rounded-2xl rounded-tl-sm shadow-md shadow-black/20'
+                                                : item.role === 'you'
+                                                    ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-100 rounded-2xl rounded-tl-sm italic'
+                                                    : 'bg-white/8 backdrop-blur-md border border-white/10 text-zinc-100 rounded-2xl rounded-tl-sm shadow-md shadow-black/20'
                                                 }`}>
-                                                {item.text}
+                                                {item.role === 'ai' ? <FormattedText text={item.text} /> : item.text}
+                                                {item.flags?.length > 0 && (
+                                                    <div className="mt-3 pt-2 border-t border-white/20 text-xs md:text-sm text-amber-200">
+                                                        ⚠️ Not in your resume, say only if true: {item.flags.join(', ')}
+                                                    </div>
+                                                )}
                                                 {/* Inline interim text inside the same bubble */}
                                                 {showInlineInterim && (
                                                     <span className="text-zinc-400 italic"> {interimTranscript}</span>
@@ -69,7 +97,8 @@ export function Console({ transcript, interimTranscript, onDelete }) {
                                                     <span className="inline-block w-0.5 h-4 md:h-5 bg-white/80 ml-0.5 align-middle animate-pulse" />
                                                 )}
                                             </div>
-                                            {item.role === 'interviewer' && (
+                                            {item.role === 'ai' && !item.streaming && <CopyButton text={item.text} />}
+                                            {item.role !== 'ai' && (
                                                 <button
                                                     onClick={() => onDelete(index)}
                                                     className="mt-1 flex-shrink-0 text-rose-400/60 hover:text-rose-300 active:scale-90 transition-all duration-200 p-1.5 tap-target"
